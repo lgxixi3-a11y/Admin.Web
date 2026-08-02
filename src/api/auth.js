@@ -11,3 +11,7 @@ export function refresh(data) {
 export function getUserInfo() {
   return service.get('/auth/userinfo')
 }
+
+export function logoutApi() {
+  return service.post('/auth/logout', null, { silent: true })
+}
