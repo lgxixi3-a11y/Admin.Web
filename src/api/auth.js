@@ -1,23 +1,13 @@
-import axios from 'axios'
-
-const service = axios.create({
-  baseURL: '/api',
-  timeout: 15000,
-  headers: { 'Content-Type': 'application/json;charset=UTF-8' }
-})
-
-function unwrap(response) {
-  const payload = response.data
-  if (payload?.code === 200) return payload.data
-  throw new Error(payload?.message || '请求失败')
-}
+import service from './http'
 
 export function login(data) {
-  return service.post('/auth/login', data).then(unwrap)
+  return service.post('/auth/login', data, { skipAuthRefresh: true })
 }
 
-export function getUserInfo(token) {
-  return service.get('/auth/userinfo', {
-    headers: { Authorization: `Bearer ${token}` }
-  }).then(unwrap)
+export function refresh(data) {
+  return service.post('/auth/refresh', data, { skipAuthRefresh: true })
+}
+
+export function getUserInfo() {
+  return service.get('/auth/userinfo')
 }
