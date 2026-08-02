@@ -4,7 +4,7 @@
 
 **Goal:** 按《04-实施计划》第 6 节在 Admin.Web 中交付用户、角色、菜单和字典四个可编译、可验证的系统管理页面。
 
-**Architecture:** 四个页面均采用 Vue 3 `script setup` 并直接调用现有 `src/api` 模块；列表统一通过 `PaginationTable` 渲染，状态统一交给 `DictTag`，业务按钮由 `v-permission` 控制。页面契约测试保存在 `src/views/system` 内，既能先证明目标文件尚不存在，也会随用户指定的 `git add src/views/system` 一同提交。
+**Architecture:** 四个页面均采用 Vue 3 `script setup` 并直接调用现有 `src/api` 模块；列表统一通过 `PaginationTable` 渲染，状态统一交给 `DictTag`，业务按钮由 `v-permission` 控制。可复用的角色分页、菜单授权与菜单类型规则放在 `system-page-utils.mjs`，通过 Node.js 行为测试验证；Vue 模板集成由 lint、生产构建和逐项代码审查验证。
 
 **Tech Stack:** Vue 3.2、Element Plus 2.14、Pinia、Vue Router、Node.js 内置 test runner、Vue CLI ESLint/build。
 
@@ -20,84 +20,72 @@
 
 ---
 
-### Task 1: 建立阶段 D 页面契约测试
+### Task 1: 以 TDD 建立系统页面共享业务逻辑
 
 **Files:**
-- Create: `src/views/system/system-pages.test.mjs`
+- Create: `src/views/system/system-page-utils.test.mjs`
+- Create: `src/views/system/system-page-utils.mjs`
 
 **Interfaces:**
-- Consumes: Node.js `node:test`、`node:assert/strict`、`node:fs`。
-- Produces: 对四个页面组件、API 操作、权限码和核心交互不变量的静态契约检查。
+- Consumes: Node.js `node:test`、`node:assert/strict`。
+- Produces: `loadAllRoleOptions`、`collectParentIds`、`getLeafCheckedKeys`、`mergeMenuKeys`、`getMenuFieldRequirements`、`sanitizeMenuFields`。
 
-- [ ] **Step 1: 写入会失败的页面契约测试**
+- [ ] **Step 1: 写入共享逻辑行为测试**
 
 ```js
 import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import path from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+import {
+  collectParentIds,
+  getLeafCheckedKeys,
+  getMenuFieldRequirements,
+  loadAllRoleOptions,
+  mergeMenuKeys,
+  sanitizeMenuFields
+} from './system-page-utils.mjs'
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const readView = name => {
-  const target = path.join(here, name, 'index.vue')
-  return fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : ''
-}
-
-test('all system list pages use PaginationTable, DictTag and permission directives', () => {
-  for (const name of ['user', 'role', 'menu', 'dict']) {
-    const source = readView(name)
-    assert.match(source, /PaginationTable/)
-    assert.match(source, /DictTag/)
-    assert.match(source, /v-permission/)
-  }
+test('loadAllRoleOptions reads every backend page with the maximum supported size', async () => {
+  const requested = []
+  const result = await loadAllRoleOptions(async params => {
+    requested.push(params)
+    if (params.pageIndex === 1) return { total: 3, items: [{ id: 1 }, { id: 2 }] }
+    return { total: 3, items: [{ id: 3 }] }
+  }, 2)
+  assert.deepEqual(requested, [{ pageIndex: 1, pageSize: 2 }, { pageIndex: 2, pageSize: 2 }])
+  assert.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }])
 })
 
-test('user page exposes CRUD, password reset and multi-role assignment', () => {
-  const source = readView('user')
-  for (const symbol of ['getUserPage', 'getUser', 'createUser', 'updateUser', 'removeUser', 'resetUserPwd', 'assignUserRoles']) {
-    assert.match(source, new RegExp(`\\b${symbol}\\b`))
-  }
-  assert.match(source, /multiple/)
-  assert.match(source, /system:user:resetPwd/)
-  assert.match(source, /system:user:assignRole/)
+test('role menu helpers preserve leaves for echo and merge checked parents once', () => {
+  const tree = [{ id: 1, children: [{ id: 2, children: [{ id: 3, children: [] }] }, { id: 4, children: [] }] }]
+  assert.deepEqual([...collectParentIds(tree)], [1, 2])
+  assert.deepEqual(getLeafCheckedKeys(tree, [1, 2, 3]), [3])
+  assert.deepEqual(mergeMenuKeys([3, 4], [1, 2, 3]), [3, 4, 1, 2])
 })
 
-test('role page merges checked and half-checked menu nodes', () => {
-  const source = readView('role')
-  assert.match(source, /<el-tree/)
-  assert.match(source, /setCheckedKeys/)
-  assert.match(source, /getCheckedKeys\(\)/)
-  assert.match(source, /getHalfCheckedKeys\(\)/)
-  assert.match(source, /assignRoleMenus/)
-})
-
-test('menu page renders a tree table and switches validation by menuType', () => {
-  const source = readView('menu')
-  assert.match(source, /show-pagination/)
-  assert.match(source, /treeProps/)
-  assert.match(source, /rowKey/)
-  assert.match(source, /menuType/)
-  assert.match(source, /component/)
-  assert.match(source, /perms/)
-  assert.match(source, /el-tree-select/)
-})
-
-test('dict page links type and data CRUD in a split layout', () => {
-  const source = readView('dict')
-  assert.ok((source.match(/<PaginationTable/g) || []).length >= 2)
-  for (const symbol of ['getDictTypePage', 'getDictDataPage', 'createDictType', 'updateDictType', 'removeDictType', 'createDictData', 'updateDictData', 'removeDictData']) {
-    assert.match(source, new RegExp(`\\b${symbol}\\b`))
-  }
-  assert.match(source, /selectedType/)
+test('menu type rules require and retain only fields valid for that type', () => {
+  assert.deepEqual(getMenuFieldRequirements(1), { path: true, component: false, perms: false })
+  assert.deepEqual(getMenuFieldRequirements(2), { path: true, component: true, perms: false })
+  assert.deepEqual(getMenuFieldRequirements(3), { path: false, component: false, perms: true })
+  const source = { path: '/users', component: 'system/user/index', perms: 'system:user:list', icon: 'User', isFrame: 1, cacheFlag: 1 }
+  assert.deepEqual(sanitizeMenuFields(source, 1), { ...source, component: '', perms: '' })
+  assert.deepEqual(sanitizeMenuFields(source, 2), { ...source, perms: '' })
+  assert.deepEqual(sanitizeMenuFields(source, 3), { ...source, path: '', component: '', icon: '', isFrame: 0, cacheFlag: 0 })
 })
 ```
 
-- [ ] **Step 2: 运行测试并确认因页面缺失而失败**
+- [ ] **Step 2: 运行测试并确认因共享逻辑缺失而失败**
 
-Run: `node --test src/views/system/system-pages.test.mjs`
+Run: `node --test src/views/system/system-page-utils.test.mjs`
 
-Expected: 5 个测试均以 `The input did not match` 或 `false == true` 失败，证明测试能够识别尚未实现的页面。
+Expected: FAIL，提示无法加载 `system-page-utils.mjs`，失败原因是目标行为尚未实现。
+
+- [ ] **Step 3: 实现最小共享逻辑并确认测试通过**
+
+`loadAllRoleOptions` 逐页调用传入的 `fetchPage`，默认 `pageSize=100`；`collectParentIds` 返回含子节点的 ID 集合；`getLeafCheckedKeys` 从授权 ID 中排除父节点；`mergeMenuKeys` 保序去重合并全选与半选 ID；菜单类型函数严格返回测试中的字段规则和清理结果。
+
+Run: `node --test src/views/system/system-page-utils.test.mjs`
+
+Expected: 3 tests PASS，0 FAIL。
 
 ---
 
@@ -105,17 +93,17 @@ Expected: 5 个测试均以 `The input did not match` 或 `false == true` 失败
 
 **Files:**
 - Create: `src/views/system/user/index.vue`
-- Test: `src/views/system/system-pages.test.mjs`
+- Test: `src/views/system/system-page-utils.test.mjs`
 
 **Interfaces:**
 - Consumes: `getUserPage/getUser/createUser/updateUser/removeUser/resetUserPwd/assignUserRoles/changeUserStatus`，以及 `getRolePage`。
 - Produces: 用户搜索、分页 CRUD、独立重置密码、独立多角色分配页面。
 
-- [ ] **Step 1: 运行用户契约测试并保留红灯证据**
+- [ ] **Step 1: 运行共享逻辑测试并保留绿色基线**
 
-Run: `node --test --test-name-pattern="user page" src/views/system/system-pages.test.mjs`
+Run: `node --test src/views/system/system-page-utils.test.mjs`
 
-Expected: FAIL，因为 `src/views/system/user/index.vue` 不存在。
+Expected: PASS；用户页必须导入并调用 `loadAllRoleOptions(getRolePage)`。
 
 - [ ] **Step 2: 创建用户页模板**
 
@@ -169,13 +157,7 @@ async function load() {
 }
 
 async function loadRoleOptions() {
-  const options = []
-  for (let pageIndex = 1; ; pageIndex += 1) {
-    const result = await getRolePage({ pageIndex, pageSize: 100 })
-    options.push(...(result.items || []))
-    if (options.length >= Number(result.total || 0) || !(result.items || []).length) break
-  }
-  roleOptions.value = options
+  roleOptions.value = await loadAllRoleOptions(getRolePage)
 }
 ```
 
@@ -227,9 +209,9 @@ async function remove(row) {
 
 `openEdit/openPassword/openRoles` 均调用 `getUser(row.id)` 获取最新详情；角色弹窗的多选值使用 `[...(detail.roleIds || [])]` 回显。
 
-- [ ] **Step 5: 运行用户契约测试并确认通过**
+- [ ] **Step 5: 运行共享逻辑测试和用户页 lint**
 
-Run: `node --test --test-name-pattern="user page" src/views/system/system-pages.test.mjs`
+Run: `node --test src/views/system/system-page-utils.test.mjs && npx vue-cli-service lint src/views/system/user/index.vue`
 
 Expected: PASS。
 
@@ -239,17 +221,17 @@ Expected: PASS。
 
 **Files:**
 - Create: `src/views/system/role/index.vue`
-- Test: `src/views/system/system-pages.test.mjs`
+- Test: `src/views/system/system-page-utils.test.mjs`
 
 **Interfaces:**
 - Consumes: 角色 CRUD API、`getMenuTree`、`assignRoleMenus`。
 - Produces: 角色分页 CRUD 和保持父级半选节点的菜单授权。
 
-- [ ] **Step 1: 运行角色契约测试并确认失败**
+- [ ] **Step 1: 运行菜单授权行为测试并确认绿色基线**
 
-Run: `node --test --test-name-pattern="role page" src/views/system/system-pages.test.mjs`
+Run: `node --test --test-name-pattern="role menu helpers" src/views/system/system-page-utils.test.mjs`
 
-Expected: FAIL，因为角色页不存在。
+Expected: PASS；角色页必须调用已测试的 `getLeafCheckedKeys` 和 `mergeMenuKeys`。
 
 - [ ] **Step 2: 创建角色搜索、分页表格和编辑弹窗**
 
@@ -271,22 +253,13 @@ total.value = Number(result.total || 0)
 ```
 
 ```js
-function collectParentIds(nodes, result = new Set()) {
-  for (const node of nodes) {
-    if (node.children?.length) result.add(node.id)
-    collectParentIds(node.children || [], result)
-  }
-  return result
-}
-
 async function openAssignMenus(row) {
   const [detail, tree] = await Promise.all([getRole(row.id), getMenuTree()])
   currentRoleId.value = row.id
   menuTree.value = tree || []
   menuVisible.value = true
   await nextTick()
-  const parentIds = collectParentIds(menuTree.value)
-  menuTreeRef.value.setCheckedKeys((detail.menuIds || []).filter(id => !parentIds.has(id)))
+  menuTreeRef.value.setCheckedKeys(getLeafCheckedKeys(menuTree.value, detail.menuIds || []))
 }
 ```
 
@@ -296,7 +269,7 @@ async function openAssignMenus(row) {
 async function saveMenus() {
   const checked = menuTreeRef.value.getCheckedKeys()
   const halfChecked = menuTreeRef.value.getHalfCheckedKeys()
-  const menuIds = [...new Set([...checked, ...halfChecked])]
+  const menuIds = mergeMenuKeys(checked, halfChecked)
   await assignRoleMenus({ roleId: currentRoleId.value, menuIds })
   ElMessage.success('菜单分配成功')
   menuVisible.value = false
@@ -304,9 +277,9 @@ async function saveMenus() {
 }
 ```
 
-- [ ] **Step 5: 运行角色契约测试并确认通过**
+- [ ] **Step 5: 运行授权行为测试和角色页 lint**
 
-Run: `node --test --test-name-pattern="role page" src/views/system/system-pages.test.mjs`
+Run: `node --test --test-name-pattern="role menu helpers" src/views/system/system-page-utils.test.mjs && npx vue-cli-service lint src/views/system/role/index.vue`
 
 Expected: PASS。
 
@@ -316,17 +289,17 @@ Expected: PASS。
 
 **Files:**
 - Create: `src/views/system/menu/index.vue`
-- Test: `src/views/system/system-pages.test.mjs`
+- Test: `src/views/system/system-page-utils.test.mjs`
 
 **Interfaces:**
 - Consumes: 菜单 CRUD API。
 - Produces: 菜单树表格、父级树选择和 `menuType` 动态表单校验。
 
-- [ ] **Step 1: 运行菜单契约测试并确认失败**
+- [ ] **Step 1: 运行菜单类型行为测试并确认绿色基线**
 
-Run: `node --test --test-name-pattern="menu page" src/views/system/system-pages.test.mjs`
+Run: `node --test --test-name-pattern="menu type rules" src/views/system/system-page-utils.test.mjs`
 
-Expected: FAIL，因为菜单页不存在。
+Expected: PASS；菜单页必须调用已测试的 `getMenuFieldRequirements` 和 `sanitizeMenuFields`。
 
 - [ ] **Step 2: 创建树形 PaginationTable**
 
@@ -363,27 +336,26 @@ const parentTree = computed(() => [{ id: 0, menuName: '根目录', children: fil
 - [ ] **Step 4: 动态校验并清理不适用字段**
 
 ```js
+const requirements = computed(() => getMenuFieldRequirements(form.menuType))
 const rules = computed(() => ({
   menuName: [{ required: true, message: '请输入菜单名称', trigger: 'blur' }],
   parentId: [{ required: true, message: '请选择父级菜单', trigger: 'change' }],
-  path: [{ required: form.menuType === 1 || form.menuType === 2, message: '请输入路由路径', trigger: 'blur' }],
-  component: [{ required: form.menuType === 2, message: '请输入组件路径', trigger: 'blur' }],
-  perms: [{ required: form.menuType === 3, message: '请输入权限标识', trigger: 'blur' }]
+  path: [{ required: requirements.value.path, message: '请输入路由路径', trigger: 'blur' }],
+  component: [{ required: requirements.value.component, message: '请输入组件路径', trigger: 'blur' }],
+  perms: [{ required: requirements.value.perms, message: '请输入权限标识', trigger: 'blur' }]
 }))
 
 watch(() => form.menuType, type => {
-  if (type === 1) { form.component = ''; form.perms = '' }
-  if (type === 2) form.perms = ''
-  if (type === 3) { form.path = ''; form.component = ''; form.icon = ''; form.isFrame = 0; form.cacheFlag = 0 }
+  Object.assign(form, sanitizeMenuFields(form, type))
   formRef.value?.clearValidate(['path', 'component', 'perms', 'parentId'])
 })
 ```
 
-- [ ] **Step 5: 完成 CRUD 并运行菜单契约测试**
+- [ ] **Step 5: 完成 CRUD 并运行菜单类型行为测试**
 
 编辑使用 `getMenu(row.id)`；保存使用 `createMenu/updateMenu`；删除先确认再调用 `removeMenu`，失败信息由 HTTP 拦截器展示。
 
-Run: `node --test --test-name-pattern="menu page" src/views/system/system-pages.test.mjs`
+Run: `node --test --test-name-pattern="menu type rules" src/views/system/system-page-utils.test.mjs && npx vue-cli-service lint src/views/system/menu/index.vue`
 
 Expected: PASS。
 
@@ -393,17 +365,17 @@ Expected: PASS。
 
 **Files:**
 - Create: `src/views/system/dict/index.vue`
-- Test: `src/views/system/system-pages.test.mjs`
+- Test: `src/views/system/system-page-utils.test.mjs`
 
 **Interfaces:**
 - Consumes: 字典类型和字典数据分页/CRUD API。
 - Produces: 响应式左右分栏、类型选择与数据分页联动。
 
-- [ ] **Step 1: 运行字典契约测试并确认失败**
+- [ ] **Step 1: 运行共享逻辑测试并确认绿色基线**
 
-Run: `node --test --test-name-pattern="dict page" src/views/system/system-pages.test.mjs`
+Run: `node --test src/views/system/system-page-utils.test.mjs`
 
-Expected: FAIL，因为字典页不存在。
+Expected: PASS；字典页不增加无法观察真实行为的源码匹配测试。
 
 - [ ] **Step 2: 创建左右分栏和两个 PaginationTable**
 
@@ -458,9 +430,9 @@ async function loadData() {
 
 数据表单字段为 `id/dictType/dictLabel/dictValue/dictSort/status/cssClass/isDefault/remark`，其中 `dictType` 固定为当前选中类型。新增、编辑、删除权限同样使用 `system:dict:add/edit/del`；状态和默认标志均使用 `DictTag`。
 
-- [ ] **Step 5: 运行字典契约测试并确认通过**
+- [ ] **Step 5: 运行共享逻辑测试和字典页 lint**
 
-Run: `node --test --test-name-pattern="dict page" src/views/system/system-pages.test.mjs`
+Run: `node --test src/views/system/system-page-utils.test.mjs && npx vue-cli-service lint src/views/system/dict/index.vue`
 
 Expected: PASS。
 
@@ -469,7 +441,8 @@ Expected: PASS。
 ### Task 6: 全量验证与用户指定提交
 
 **Files:**
-- Verify: `src/views/system/system-pages.test.mjs`
+- Verify: `src/views/system/system-page-utils.test.mjs`
+- Verify: `src/views/system/system-page-utils.mjs`
 - Verify: `src/views/system/user/index.vue`
 - Verify: `src/views/system/role/index.vue`
 - Verify: `src/views/system/menu/index.vue`
@@ -479,11 +452,11 @@ Expected: PASS。
 - Consumes: 全部阶段 D 页面和项目现有测试/构建脚本。
 - Produces: 可审计的测试、lint、构建结果和指定 Git commit。
 
-- [ ] **Step 1: 运行阶段 D 页面契约测试**
+- [ ] **Step 1: 运行阶段 D 共享逻辑行为测试**
 
-Run: `node --test src/views/system/system-pages.test.mjs`
+Run: `node --test src/views/system/system-page-utils.test.mjs`
 
-Expected: 5 tests PASS，0 FAIL。
+Expected: 3 tests PASS，0 FAIL。
 
 - [ ] **Step 2: 运行现有单元测试**
 
@@ -507,7 +480,7 @@ Expected: `Build complete`，进程退出码为 0。
 
 Run: `git diff --check && git status --short && git diff -- src/views/system`
 
-Expected: 无空白错误；仅出现本计划要求的系统页面和契约测试改动；四页逐项具备 CRUD、权限、DictTag 和 PaginationTable，角色授权含全选/半选合并。
+Expected: 无空白错误；仅出现本计划要求的系统页面、共享逻辑和行为测试改动；四页逐项具备 CRUD、权限、DictTag 和 PaginationTable，角色授权含全选/半选合并。
 
 - [ ] **Step 6: 按用户指定范围暂存并提交**
 
@@ -520,4 +493,4 @@ git commit -m "feat: 系统管理页面(用户/角色/菜单/字典), 含 v-perm
 
 Run: `git show --stat --oneline HEAD && git status --short`
 
-Expected: HEAD 提交信息与用户指定内容完全一致；提交包含四个 `index.vue` 和 `system-pages.test.mjs`；工作区干净。
+Expected: HEAD 提交信息与用户指定内容完全一致；提交包含四个 `index.vue`、共享逻辑与行为测试；工作区干净。
