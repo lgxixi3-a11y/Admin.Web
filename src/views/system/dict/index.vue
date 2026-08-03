@@ -147,100 +147,8 @@
       </el-card>
     </div>
 
-    <el-dialog v-model="typeDialogVisible" :title="typeForm.id ? '编辑字典类型' : '新增字典类型'" width="520px">
-      <el-form ref="typeFormRef" :model="typeForm" :rules="typeRules" label-width="92px">
-        <el-form-item label="字典名称" prop="dictName">
-          <el-input v-model.trim="typeForm.dictName" maxlength="64" show-word-limit />
-        </el-form-item>
-        <el-form-item label="字典类型" prop="dictType">
-          <el-input v-model.trim="typeForm.dictType" maxlength="64" show-word-limit />
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="typeForm.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="typeForm.remark" type="textarea" :rows="3" maxlength="256" show-word-limit />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="typeDialogVisible = false">取消</el-button>
-        <el-button
-          v-if="typeForm.id"
-          v-permission="'system:dict:edit'"
-          type="primary"
-          :loading="typeSaving"
-          @click="saveType"
-        >保存</el-button>
-        <el-button
-          v-else
-          v-permission="'system:dict:add'"
-          type="primary"
-          :loading="typeSaving"
-          @click="saveType"
-        >保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="dataDialogVisible" :title="dataForm.id ? '编辑字典数据' : '新增字典数据'" width="560px">
-      <el-form ref="dataFormRef" :model="dataForm" :rules="dataRules" label-width="92px">
-        <el-form-item label="字典类型">
-          <el-input v-model="dataForm.dictType" disabled />
-        </el-form-item>
-        <el-form-item label="数据标签" prop="dictLabel">
-          <el-input v-model.trim="dataForm.dictLabel" maxlength="64" show-word-limit />
-        </el-form-item>
-        <el-form-item label="数据键值" prop="dictValue">
-          <el-input v-model.trim="dataForm.dictValue" maxlength="64" show-word-limit />
-        </el-form-item>
-        <el-form-item label="显示排序" prop="dictSort">
-          <el-input-number v-model="dataForm.dictSort" :min="0" :max="99999" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="标签样式" prop="cssClass">
-          <el-select v-model="dataForm.cssClass" clearable placeholder="默认样式" class="full-width">
-            <el-option label="success" value="success" />
-            <el-option label="warning" value="warning" />
-            <el-option label="danger" value="danger" />
-            <el-option label="info" value="info" />
-            <el-option label="primary" value="primary" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="默认值" prop="isDefault">
-          <el-radio-group v-model="dataForm.isDefault">
-            <el-radio :value="1">是</el-radio>
-            <el-radio :value="0">否</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="dataForm.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="dataForm.remark" type="textarea" :rows="3" maxlength="256" show-word-limit />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dataDialogVisible = false">取消</el-button>
-        <el-button
-          v-if="dataForm.id"
-          v-permission="'system:dict:edit'"
-          type="primary"
-          :loading="dataSaving"
-          @click="saveData"
-        >保存</el-button>
-        <el-button
-          v-else
-          v-permission="'system:dict:add'"
-          type="primary"
-          :loading="dataSaving"
-          @click="saveData"
-        >保存</el-button>
-      </template>
-    </el-dialog>
+    <DictTypeFormDialog ref="typeFormRef" @saved="handleTypeSaved" />
+    <DictDataFormDialog ref="dataFormRef" @saved="handleDataSaved" />
   </main>
 </template>
 
@@ -249,21 +157,14 @@ export default { name: 'SystemDictPage' }
 </script>
 
 <script setup>
-import { nextTick, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DictTag from '@/components/DictTag.vue'
 import PaginationTable from '@/components/PaginationTable.vue'
-import {
-  createDictData,
-  createDictType,
-  getDictDataPage,
-  getDictTypePage,
-  removeDictData,
-  removeDictType,
-  updateDictData,
-  updateDictType
-} from '@/api/dict'
+import { getDictDataPage, getDictTypePage, removeDictData, removeDictType } from '@/api/dict'
 import { ENABLED_STATUS_OPTIONS } from '../system-page-utils.mjs'
+import DictTypeFormDialog from './components/DictTypeFormDialog.vue'
+import DictDataFormDialog from './components/DictDataFormDialog.vue'
 
 const enabledStatusOptions = ENABLED_STATUS_OPTIONS
 
@@ -289,46 +190,13 @@ const dataTotal = ref(0)
 const dataLoading = ref(false)
 let dataLoadGeneration = 0
 
-const typeDialogVisible = ref(false)
-const typeSaving = ref(false)
 const typeDeletingId = ref(null)
-const typeFormRef = ref()
-const typeForm = reactive(createEmptyTypeForm())
-const typeRules = {
-  dictName: [{ required: true, message: '请输入字典名称', trigger: 'blur' }],
-  dictType: [{ required: true, message: '请输入字典类型', trigger: 'blur' }]
-}
-
-const dataDialogVisible = ref(false)
-const dataSaving = ref(false)
 const dataDeletingId = ref(null)
+const typeFormRef = ref()
 const dataFormRef = ref()
-const dataForm = reactive(createEmptyDataForm())
-const dataRules = {
-  dictLabel: [{ required: true, message: '请输入数据标签', trigger: 'blur' }],
-  dictValue: [{ required: true, message: '请输入数据键值', trigger: 'blur' }]
-}
 
 const typeTableProps = { stripe: true, highlightCurrentRow: true, onRowClick: selectType }
 const dataTableProps = { stripe: true }
-
-function createEmptyTypeForm() {
-  return { id: null, dictName: '', dictType: '', status: 1, remark: '' }
-}
-
-function createEmptyDataForm() {
-  return {
-    id: null,
-    dictType: '',
-    dictLabel: '',
-    dictValue: '',
-    dictSort: 0,
-    status: 1,
-    cssClass: '',
-    isDefault: 0,
-    remark: ''
-  }
-}
 
 async function loadTypes() {
   const generation = ++typeLoadGeneration
@@ -434,37 +302,28 @@ function handleDataPageChange({ page, pageSize }) {
 }
 
 function openTypeCreate() {
-  Object.assign(typeForm, createEmptyTypeForm())
-  typeDialogVisible.value = true
-  nextTick(() => typeFormRef.value?.clearValidate())
+  typeFormRef.value.open(null)
 }
 
 function openTypeEdit(row) {
-  Object.assign(typeForm, createEmptyTypeForm(), {
-    id: row.id,
-    dictName: row.dictName,
-    dictType: row.dictType,
-    status: row.status,
-    remark: row.remark || ''
-  })
-  typeDialogVisible.value = true
-  nextTick(() => typeFormRef.value?.clearValidate())
+  typeFormRef.value.open(row)
 }
 
-async function saveType() {
-  const valid = await typeFormRef.value?.validate().catch(() => false)
-  if (!valid || typeSaving.value) return
-  typeSaving.value = true
-  try {
-    const payload = { ...typeForm }
-    if (payload.id) await updateDictType(payload)
-    else await createDictType(payload)
-    ElMessage.success(payload.id ? '字典类型修改成功' : '字典类型新增成功')
-    typeDialogVisible.value = false
-    await loadTypes()
-  } finally {
-    typeSaving.value = false
-  }
+function handleTypeSaved() {
+  loadTypes()
+}
+
+function openDataCreate() {
+  if (!selectedType.value) return
+  dataFormRef.value.open(null, selectedType.value.dictType)
+}
+
+function openDataEdit(row) {
+  dataFormRef.value.open(row)
+}
+
+function handleDataSaved() {
+  loadData()
 }
 
 async function deleteType(row) {
@@ -485,45 +344,6 @@ async function deleteType(row) {
     if (error !== 'cancel' && error !== 'close') throw error
   } finally {
     typeDeletingId.value = null
-  }
-}
-
-function openDataCreate() {
-  if (!selectedType.value) return
-  Object.assign(dataForm, createEmptyDataForm(), { dictType: selectedType.value.dictType })
-  dataDialogVisible.value = true
-  nextTick(() => dataFormRef.value?.clearValidate())
-}
-
-function openDataEdit(row) {
-  Object.assign(dataForm, createEmptyDataForm(), {
-    id: row.id,
-    dictType: row.dictType,
-    dictLabel: row.dictLabel,
-    dictValue: row.dictValue,
-    dictSort: row.dictSort,
-    status: row.status,
-    cssClass: row.cssClass || '',
-    isDefault: row.isDefault,
-    remark: row.remark || ''
-  })
-  dataDialogVisible.value = true
-  nextTick(() => dataFormRef.value?.clearValidate())
-}
-
-async function saveData() {
-  const valid = await dataFormRef.value?.validate().catch(() => false)
-  if (!valid || dataSaving.value) return
-  dataSaving.value = true
-  try {
-    const payload = { ...dataForm, dictType: selectedType.value.dictType }
-    if (payload.id) await updateDictData(payload)
-    else await createDictData(payload)
-    ElMessage.success(payload.id ? '字典数据修改成功' : '字典数据新增成功')
-    dataDialogVisible.value = false
-    await loadData()
-  } finally {
-    dataSaving.value = false
   }
 }
 

@@ -1,12 +1,12 @@
 <template>
   <div class="app-container">
     <el-card class="search-card" shadow="never">
-      <el-form :inline="true" :model="filters" @submit.prevent="search">
+      <el-form :inline="true" :model="filters" class="search-form" @submit.prevent="search">
         <el-form-item label="角色名称">
-          <el-input v-model.trim="filters.roleName" clearable />
+          <el-input v-model.trim="filters.roleName" clearable placeholder="请输入角色名称" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="filters.status" clearable>
+          <el-select v-model="filters.status" clearable placeholder="全部" class="status-select">
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
           </el-select>
@@ -32,7 +32,11 @@
           <el-button v-permission="'system:role:add'" type="primary" @click="openCreate">新增角色</el-button>
         </template>
         <el-table-column prop="roleName" label="角色名称" min-width="140" />
-        <el-table-column prop="roleKey" label="角色标识" min-width="140" />
+        <el-table-column prop="roleKey" label="角色标识" min-width="140">
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small">{{ row.roleKey }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="sort" label="排序" width="90" />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -60,65 +64,8 @@
       </PaginationTable>
     </el-card>
 
-    <el-dialog v-model="formVisible" :title="form.id ? '编辑角色' : '新增角色'" width="520px" destroy-on-close>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
-        <el-form-item label="角色名称" prop="roleName">
-          <el-input v-model.trim="form.roleName" maxlength="64" show-word-limit />
-        </el-form-item>
-        <el-form-item label="角色标识" prop="roleKey">
-          <el-input v-model.trim="form.roleKey" maxlength="64" show-word-limit />
-        </el-form-item>
-        <el-form-item label="排序" prop="sort">
-          <el-input-number v-model="form.sort" :min="0" :precision="0" />
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-radio-group v-model="form.status">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model.trim="form.remark" type="textarea" :rows="3" maxlength="256" show-word-limit />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="formVisible = false">取消</el-button>
-        <el-button
-          v-if="form.id"
-          v-permission="'system:role:edit'"
-          type="primary"
-          :loading="saving"
-          @click="saveRole"
-        >确定</el-button>
-        <el-button
-          v-else
-          v-permission="'system:role:add'"
-          type="primary"
-          :loading="saving"
-          @click="saveRole"
-        >确定</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="menuVisible" title="分配菜单" width="520px" destroy-on-close>
-      <el-tree
-        ref="menuTreeRef"
-        :data="menuTree"
-        show-checkbox
-        node-key="id"
-        :props="{ label: 'menuName', children: 'children' }"
-        default-expand-all
-      />
-      <template #footer>
-        <el-button @click="menuVisible = false">取消</el-button>
-        <el-button
-          v-permission="'system:role:assignMenu'"
-          type="primary"
-          :loading="menuSaving"
-          @click="saveMenus"
-        >确定</el-button>
-      </template>
-    </el-dialog>
+    <RoleFormDialog ref="roleFormRef" @saved="load" />
+    <AssignMenuDialog ref="assignMenuRef" @saved="load" />
   </div>
 </template>
 
@@ -127,13 +74,14 @@ export default { name: 'SystemRolePage' }
 </script>
 
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PaginationTable from '@/components/PaginationTable.vue'
 import DictTag from '@/components/DictTag.vue'
-import { assignRoleMenus, createRole, getRole, getRolePage, removeRole, updateRole } from '@/api/role'
-import { getMenuTree } from '@/api/menu'
-import { ENABLED_STATUS_OPTIONS, getLeafCheckedKeys, mergeMenuKeys } from '../system-page-utils.mjs'
+import { getRolePage, removeRole } from '@/api/role'
+import { ENABLED_STATUS_OPTIONS } from '../system-page-utils.mjs'
+import RoleFormDialog from './components/RoleFormDialog.vue'
+import AssignMenuDialog from './components/AssignMenuDialog.vue'
 
 const enabledStatusOptions = ENABLED_STATUS_OPTIONS
 
@@ -146,37 +94,15 @@ const loading = ref(false)
 const deletingRoleId = ref(null)
 let loadGeneration = 0
 
-const formRef = ref()
-const formVisible = ref(false)
-const saving = ref(false)
-const form = reactive({ id: null, roleName: '', roleKey: '', sort: 0, status: 1, remark: '' })
-const rules = {
-  roleName: [
-    { required: true, message: '请输入角色名称', trigger: 'blur' },
-    { max: 64, message: '角色名称不能超过 64 个字符', trigger: 'blur' }
-  ],
-  roleKey: [
-    { required: true, message: '请输入角色标识', trigger: 'blur' },
-    { max: 64, message: '角色标识不能超过 64 个字符', trigger: 'blur' }
-  ]
-}
-
-const menuTreeRef = ref()
-const menuVisible = ref(false)
-const menuSaving = ref(false)
-const menuTree = ref([])
-const currentRoleId = ref(null)
-
-function resetForm() {
-  Object.assign(form, { id: null, roleName: '', roleKey: '', sort: 0, status: 1, remark: '' })
-}
+const roleFormRef = ref()
+const assignMenuRef = ref()
 
 async function load() {
   const generation = ++loadGeneration
   const params = {
     pageIndex: page.value,
     pageSize: pageSize.value,
-    roleName: filters.roleName,
+    roleName: filters.roleName || undefined,
     status: filters.status
   }
   loading.value = true
@@ -206,41 +132,16 @@ async function handlePageChange({ page: nextPage, pageSize: nextPageSize }) {
   await load()
 }
 
-async function openCreate() {
-  resetForm()
-  formVisible.value = true
-  await nextTick()
-  formRef.value?.clearValidate()
+function openCreate() {
+  roleFormRef.value.open(null)
 }
 
-async function openEdit(row) {
-  const detail = await getRole(row.id)
-  Object.assign(form, {
-    id: detail.id,
-    roleName: detail.roleName || '',
-    roleKey: detail.roleKey || '',
-    sort: detail.sort ?? 0,
-    status: detail.status ?? 1,
-    remark: detail.remark || ''
-  })
-  formVisible.value = true
-  await nextTick()
-  formRef.value?.clearValidate()
+function openEdit(row) {
+  roleFormRef.value.open(row)
 }
 
-async function saveRole() {
-  if (!await formRef.value.validate().catch(() => false)) return
-  saving.value = true
-  try {
-    const payload = { ...form }
-    if (payload.id) await updateRole(payload)
-    else await createRole(payload)
-    ElMessage.success(payload.id ? '修改成功' : '新增成功')
-    formVisible.value = false
-    await load()
-  } finally {
-    saving.value = false
-  }
+function openAssignMenus(row) {
+  assignMenuRef.value.open(row)
 }
 
 async function remove(row) {
@@ -259,35 +160,24 @@ async function remove(row) {
   }
 }
 
-async function openAssignMenus(row) {
-  const [detail, tree] = await Promise.all([getRole(row.id), getMenuTree()])
-  currentRoleId.value = row.id
-  menuTree.value = tree || []
-  menuVisible.value = true
-  await nextTick()
-  menuTreeRef.value.setCheckedKeys(getLeafCheckedKeys(menuTree.value, detail.menuIds || []))
-}
-
-async function saveMenus() {
-  const checked = menuTreeRef.value.getCheckedKeys()
-  const halfChecked = menuTreeRef.value.getHalfCheckedKeys()
-  const menuIds = mergeMenuKeys(checked, halfChecked)
-  menuSaving.value = true
-  try {
-    await assignRoleMenus({ roleId: currentRoleId.value, menuIds })
-    ElMessage.success('菜单分配成功')
-    menuVisible.value = false
-    await load()
-  } finally {
-    menuSaving.value = false
-  }
-}
-
 onMounted(load)
 </script>
 
 <style scoped>
 .search-card {
   margin-bottom: 16px;
+}
+
+.search-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+  margin-right: 14px;
+}
+
+.search-form :deep(.el-input) {
+  width: 170px;
+}
+
+.status-select {
+  width: 110px;
 }
 </style>

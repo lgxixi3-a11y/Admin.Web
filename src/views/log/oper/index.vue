@@ -47,12 +47,27 @@
           </el-button>
         </template>
         <el-table-column prop="id" label="编号" width="90" />
-        <el-table-column prop="userName" label="用户名" min-width="110" show-overflow-tooltip />
+        <el-table-column label="用户" min-width="150">
+          <template #default="{ row }">
+            <div class="user-cell">
+              <span v-if="row.nickName" class="user-nick">{{ row.nickName }}</span>
+              <span class="user-name">@{{ row.userName }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="module" label="模块" min-width="110" show-overflow-tooltip />
         <el-table-column prop="action" label="操作" min-width="120" show-overflow-tooltip />
         <el-table-column prop="requestMethod" label="请求方式" width="105" />
         <el-table-column prop="url" label="请求地址" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="ipAddr" label="操作 IP" min-width="130" />
+        <el-table-column label="操作 IP" min-width="130">
+          <template #default="{ row }">
+            <span>{{ row.ipAddr || '—' }}</span>
+            <el-tag v-if="isInternalIp(row.ipAddr)" size="small" type="info" class="ip-tag">内网</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="浏览器" min-width="100" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.browser || '—' }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="88" align="center">
           <template #default="{ row }">
             <el-tag :type="Number(row.status) === 1 ? 'success' : 'danger'" size="small">
@@ -72,9 +87,9 @@
       </PaginationTable>
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="操作日志详情" width="760px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="操作日志详情" width="820px" destroy-on-close>
       <el-descriptions v-if="detail" :column="2" border>
-        <el-descriptions-item label="用户名">{{ detail.userName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="用户">{{ detail.nickName ? `${detail.nickName} (@${detail.userName})` : (detail.userName || '-') }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ Number(detail.status) === 1 ? '成功' : '失败' }}</el-descriptions-item>
         <el-descriptions-item label="模块">{{ detail.module || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作">{{ detail.action || '-' }}</el-descriptions-item>
@@ -82,6 +97,9 @@
         <el-descriptions-item label="耗时">{{ detail.costMs ?? '-' }} ms</el-descriptions-item>
         <el-descriptions-item label="请求地址" :span="2">{{ detail.url || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作 IP">{{ detail.ipAddr || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="操作地点">{{ formatLocation(detail.location) }}</el-descriptions-item>
+        <el-descriptions-item label="浏览器">{{ detail.browser || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="操作系统">{{ detail.os || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作时间">{{ detail.operTime || '-' }}</el-descriptions-item>
       </el-descriptions>
       <section v-if="detail" class="json-section">
@@ -116,6 +134,17 @@ const detail = ref(null)
 let loadGeneration = 0
 
 const tableProps = { stripe: true }
+
+function isInternalIp(ip) {
+  if (!ip) return false
+  return /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)
+}
+
+function formatLocation(location) {
+  if (!location) return '—'
+  if (location.startsWith('Reserved')) return '内网地址'
+  return location.split('|').slice(0, 4).filter(p => p && p !== '0').join(' ')
+}
 
 function getTimeRange() {
   const [beginDate, endDate] = filters.dateRange || []
@@ -213,8 +242,36 @@ onMounted(load)
   margin-bottom: 16px;
 }
 
+.search-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+  margin-right: 14px;
+}
+
+.search-form :deep(.el-input) {
+  width: 170px;
+}
+
 .status-select {
   width: 100px;
+}
+
+.user-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.user-nick {
+  font-weight: 500;
+}
+
+.user-name {
+  color: #909399;
+  font-size: 12px;
+}
+
+.ip-tag {
+  margin-left: 6px;
 }
 
 .json-section {

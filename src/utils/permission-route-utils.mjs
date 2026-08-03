@@ -13,7 +13,7 @@ export function buildMenuRoutes(menus, resolveComponent) {
     .map(menu => ({
       path: menu.path || '',
       name: `Menu${menu.id}`,
-      component: isLayout(menu.component) ? 'layout' : resolveComponent(normalizeComponent(menu.component)),
+      component: resolveMenuComponent(menu, resolveComponent),
       meta: {
         title: menu.menuName || '未命名菜单',
         icon: menu.icon || '',
@@ -22,6 +22,13 @@ export function buildMenuRoutes(menus, resolveComponent) {
       },
       children: buildMenuRoutes(menu.children, resolveComponent)
     }))
+}
+
+function resolveMenuComponent(menu, resolveComponent) {
+  // 目录(无 component) → RouteView 容器, 子路由在其中的 router-view 渲染
+  if (!menu.component || isLayout(menu.component)) return 'layout'
+  // 菜单 → 懒加载对应 views 组件; 找不到时 loadView 内部回退 404
+  return resolveComponent(normalizeComponent(menu.component))
 }
 
 function isNavigable(menu) {

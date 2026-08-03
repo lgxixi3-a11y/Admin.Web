@@ -100,3 +100,15 @@ test('menu API sends each system menu operation to its documented endpoint', () 
     ['delete', '/system/menu/103']
   ])
 })
+
+test('setting API sends database connection tests to the read-only endpoint', () => {
+  const request = createRequestSpy()
+  const api = loadApi('setting.js', request)
+  const input = { dbType: 'sqlite', connectionString: 'Data Source=test.db' }
+
+  api.testDatabaseConnection(input)
+
+  assert.deepEqual(JSON.parse(JSON.stringify(request.calls)), [
+    ['put', '/tool/setting/testConnection', input]
+  ])
+})

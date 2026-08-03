@@ -2,7 +2,7 @@
 <template>
   <section class="log-page">
     <el-card class="search-card" shadow="never">
-      <el-form :inline="true" :model="filters" @submit.prevent="search">
+      <el-form :inline="true" :model="filters" class="search-form" @submit.prevent="search">
         <el-form-item label="用户名">
           <el-input v-model.trim="filters.userName" clearable placeholder="请输入用户名" />
         </el-form-item>
@@ -47,11 +47,31 @@
           </el-button>
         </template>
         <el-table-column prop="id" label="编号" width="90" />
-        <el-table-column prop="userName" label="用户名" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="ipAddr" label="登录 IP" min-width="130" />
-        <el-table-column prop="location" label="登录地点" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="browser" label="浏览器" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="os" label="操作系统" min-width="120" show-overflow-tooltip />
+        <el-table-column label="用户" min-width="150">
+          <template #default="{ row }">
+            <div class="user-cell">
+              <span v-if="row.nickName" class="user-nick">{{ row.nickName }}</span>
+              <span class="user-name">@{{ row.userName }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="登录 IP" min-width="130">
+          <template #default="{ row }">
+            <span>{{ row.ipAddr || '—' }}</span>
+            <el-tag v-if="isInternalIp(row.ipAddr)" size="small" type="info" class="ip-tag">内网</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="登录地点" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ formatLocation(row.location) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="浏览器" min-width="110" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.browser || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="操作系统" min-width="130" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.os || '—' }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="88" align="center">
           <template #default="{ row }">
             <el-tag :type="Number(row.status) === 1 ? 'success' : 'danger'" size="small">
@@ -82,6 +102,18 @@ const clearing = ref(false)
 let loadGeneration = 0
 
 const tableProps = { stripe: true }
+
+function isInternalIp(ip) {
+  if (!ip) return false
+  return /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)
+}
+
+function formatLocation(location) {
+  if (!location) return '—'
+  if (location.startsWith('Reserved')) return '内网地址'
+  // 去掉末尾的 iso 码: "中国|江苏省|南京市|0|CN" → "中国 江苏省 南京市"
+  return location.split('|').slice(0, 4).filter(p => p && p !== '0').join(' ')
+}
 
 function getTimeRange() {
   const [beginDate, endDate] = filters.dateRange || []
@@ -156,7 +188,35 @@ onMounted(load)
   margin-bottom: 16px;
 }
 
+.search-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+  margin-right: 14px;
+}
+
+.search-form :deep(.el-input) {
+  width: 170px;
+}
+
 .status-select {
   width: 100px;
+}
+
+.user-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.user-nick {
+  font-weight: 500;
+}
+
+.user-name {
+  color: #909399;
+  font-size: 12px;
+}
+
+.ip-tag {
+  margin-left: 6px;
 }
 </style>
