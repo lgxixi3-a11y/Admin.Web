@@ -54,7 +54,7 @@
       <el-row v-if="form.menuType !== 3" :gutter="16">
         <el-col :span="12">
           <el-form-item label="图标" prop="icon">
-            <el-input v-model="form.icon" maxlength="64" />
+            <IconSelect v-model="form.icon" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -118,6 +118,7 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createMenu, getMenu, updateMenu } from '@/api/menu'
+import IconSelect from '@/components/IconSelect.vue'
 import { getMenuFieldRequirements, sanitizeMenuFields } from '../../system-page-utils.mjs'
 
 const props = defineProps({
