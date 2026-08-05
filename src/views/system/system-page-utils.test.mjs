@@ -6,46 +6,9 @@ import {
   filterMenuTreeByKeyword,
   getLeafCheckedKeys,
   getMenuFieldRequirements,
-  loadAllRoleOptions,
   mergeMenuKeys,
   sanitizeMenuFields
 } from './system-page-utils.mjs'
-
-test('loadAllRoleOptions reads every backend page with the maximum supported size', async () => {
-  const requested = []
-  const result = await loadAllRoleOptions(async params => {
-    requested.push(params)
-    if (params.pageIndex === 1) return { total: 3, items: [{ id: 1 }, { id: 2 }] }
-    return { total: 3, items: [{ id: 3 }] }
-  }, 2)
-  assert.deepEqual(requested, [{ pageIndex: 1, pageSize: 2 }, { pageIndex: 2, pageSize: 2 }])
-  assert.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }])
-})
-
-test('loadAllRoleOptions stops when a positive total is followed by an empty page', async () => {
-  const requested = []
-  const result = await loadAllRoleOptions(async params => {
-    requested.push(params)
-    if (params.pageIndex === 1) return { total: 3, items: [{ id: 1 }] }
-    if (params.pageIndex === 2) return { total: 3, items: [] }
-    throw new Error('pagination continued after an empty page')
-  }, 1)
-
-  assert.deepEqual(requested, [{ pageIndex: 1, pageSize: 1 }, { pageIndex: 2, pageSize: 1 }])
-  assert.deepEqual(result, [{ id: 1 }])
-})
-
-test('loadAllRoleOptions treats malformed items as an empty terminal page', async () => {
-  let requests = 0
-  const result = await loadAllRoleOptions(async () => {
-    requests += 1
-    if (requests > 1) throw new Error('pagination continued after malformed items')
-    return { total: 2, items: null }
-  })
-
-  assert.equal(requests, 1)
-  assert.deepEqual(result, [])
-})
 
 test('role menu helpers preserve leaves for echo and merge checked parents once', () => {
   const tree = [{ id: 1, children: [{ id: 2, children: [{ id: 3, children: [] }] }, { id: 4, children: [] }] }]

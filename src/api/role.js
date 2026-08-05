@@ -1,6 +1,7 @@
 import request from './http'
 
 export const getRolePage = params => request.get('/system/role/page', { params })
+export const getRoleOptions = () => request.get('/system/role/options')
 export const getRole = id => request.get(`/system/role/${id}`)
 export const createRole = data => request.post('/system/role', data)
 export const updateRole = data => request.put('/system/role', data)

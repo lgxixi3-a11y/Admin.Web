@@ -41,6 +41,10 @@
           </div>
         </el-form-item>
 
+        <el-form-item>
+          <el-checkbox v-model="form.rememberMe" class="remember-checkbox">记住我（7 天内免登录）</el-checkbox>
+        </el-form-item>
+
         <el-button type="primary" native-type="submit" class="login-button" :loading="loading">
           {{ loading ? '登录中...' : '登 录' }}
         </el-button>
@@ -73,7 +77,7 @@ const userStore = useUserStore()
 const permissionStore = usePermissionStore()
 const loading = ref(false)
 const submitting = ref(false)
-const form = reactive({ userName: '', password: '', captcha: '' })
+const form = reactive({ userName: '', password: '', captcha: '', rememberMe: true })
 const rules = {
   userName: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [
@@ -104,7 +108,7 @@ async function submit() {
     loading.value = true
     try {
       const data = await login(form)
-      userStore.setTokens(data.accessToken, data.refreshToken)
+      userStore.setTokens(data.accessToken, data.refreshToken, form.rememberMe)
       permissionStore.resetRoutes()
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
       await router.replace(redirect.startsWith('/') ? redirect : '/')
@@ -201,6 +205,10 @@ async function submit() {
   letter-spacing: 6px;
   transition: filter 0.2s ease, transform 0.2s ease;
   width: 100%;
+}
+
+.remember-checkbox {
+  color: #475569;
 }
 
 .login-button:hover,

@@ -68,9 +68,11 @@ test('http refreshes once and replays every concurrent 401 request with the new 
   const userStore = {
     token: 'expired-access',
     refreshToken: 'refresh-token',
-    setTokens(accessToken, refreshToken) {
+    rememberMe: false,
+    setTokens(accessToken, refreshToken, rememberMe) {
       this.token = accessToken
       this.refreshToken = refreshToken
+      this.rememberMe = rememberMe
     },
     logout() { throw new Error('refresh should not fail') }
   }
@@ -94,6 +96,7 @@ test('http refreshes once and replays every concurrent 401 request with the new 
     { retried: '/tool/job/page', authorization: 'Bearer fresh-access' }
   ])
   assert.equal(userStore.refreshToken, 'fresh-refresh')
+  assert.equal(userStore.rememberMe, false)
 })
 
 test('http does not refresh a rejected login request', async () => {

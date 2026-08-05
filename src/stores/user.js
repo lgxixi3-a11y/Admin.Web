@@ -8,23 +8,31 @@ const REFRESH_TOKEN_KEY = 'admin-refresh-token'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
-    token: localStorage.getItem(TOKEN_KEY) || '',
-    refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY) || '',
+    token: localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || '',
+    refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY) || sessionStorage.getItem(REFRESH_TOKEN_KEY) || '',
+    rememberMe: Boolean(localStorage.getItem(TOKEN_KEY) || localStorage.getItem(REFRESH_TOKEN_KEY)),
     userInfo: null,
     roles: [],
     perms: [],
     menus: []
   }),
   actions: {
-    setTokens(accessToken, refreshToken) {
+    setTokens(accessToken, refreshToken, rememberMe = false) {
       this.token = accessToken || ''
       this.refreshToken = refreshToken || ''
+      this.rememberMe = Boolean(rememberMe)
 
-      if (this.token) localStorage.setItem(TOKEN_KEY, this.token)
-      else localStorage.removeItem(TOKEN_KEY)
+      const storage = rememberMe ? localStorage : sessionStorage
+      const clearStorage = rememberMe ? sessionStorage : localStorage
 
-      if (this.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, this.refreshToken)
-      else localStorage.removeItem(REFRESH_TOKEN_KEY)
+      if (this.token) storage.setItem(TOKEN_KEY, this.token)
+      else storage.removeItem(TOKEN_KEY)
+
+      if (this.refreshToken) storage.setItem(REFRESH_TOKEN_KEY, this.refreshToken)
+      else storage.removeItem(REFRESH_TOKEN_KEY)
+
+      clearStorage.removeItem(TOKEN_KEY)
+      clearStorage.removeItem(REFRESH_TOKEN_KEY)
     },
     async getInfo() {
       if (!this.token) throw new Error('登录凭证不存在')
@@ -37,7 +45,7 @@ export const useUserStore = defineStore('user', {
       return data
     },
     logout() {
-      this.setTokens('', '')
+      this.setTokens('', '', false)
       this.userInfo = null
       this.roles = []
       this.perms = []

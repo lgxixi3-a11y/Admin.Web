@@ -3,23 +3,6 @@ export const ENABLED_STATUS_OPTIONS = [
   { dictLabel: '禁用', dictValue: 0, cssClass: 'info' }
 ]
 
-export async function loadAllRoleOptions(fetchPage, pageSize = 100) {
-  const allItems = []
-  let pageIndex = 1
-  let total = 0
-
-  do {
-    const page = await fetchPage({ pageIndex, pageSize })
-    const items = Array.isArray(page?.items) ? page.items : []
-    total = Number(page?.total || 0)
-    if (items.length === 0) break
-    allItems.push(...items)
-    pageIndex += 1
-  } while (allItems.length < total)
-
-  return allItems
-}
-
 export function collectParentIds(tree) {
   const parentIds = new Set()
 

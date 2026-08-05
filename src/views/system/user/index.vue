@@ -89,8 +89,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import DictTag from '@/components/DictTag.vue'
 import PaginationTable from '@/components/PaginationTable.vue'
 import { changeUserStatus, getUserPage, removeUser } from '@/api/user'
-import { getRolePage } from '@/api/role'
-import { ENABLED_STATUS_OPTIONS, loadAllRoleOptions } from '../system-page-utils.mjs'
+import { getRoleOptions } from '@/api/role'
+import { ENABLED_STATUS_OPTIONS } from '../system-page-utils.mjs'
 import UserFormDialog from './components/UserFormDialog.vue'
 import ResetPwdDialog from './components/ResetPwdDialog.vue'
 import AssignRoleDialog from './components/AssignRoleDialog.vue'
@@ -133,7 +133,7 @@ async function load() {
 }
 
 async function loadRoleOptions() {
-  roleOptions.value = await loadAllRoleOptions(getRolePage)
+  roleOptions.value = await getRoleOptions()
 }
 
 async function search() {

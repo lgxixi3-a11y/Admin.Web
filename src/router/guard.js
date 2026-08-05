@@ -19,10 +19,22 @@ router.beforeEach(async to => {
       await userStore.getInfo()
       const routes = permissionStore.generateRoutes(userStore.menus)
       permissionStore.setRouteRemovers(routes.map(route => router.addRoute('Root', route)))
-      return { ...to, replace: true }
+      // 不能重放 { ...to }: 首次导航时动态路由尚未注册, 深层路径(如 /system/user)
+      // 会被通配路由 :pathMatch(.*)* 抢先重定向到 /404, 此时 to 已是 /404 的解析结果,
+      // 直接重放会把用户打进 404 页。应回到原始目标(含 query/hash), 让 vue-router
+      // 按已注册路由重新解析。
+      if (to.redirectedFrom) {
+        return {
+          path: to.redirectedFrom.path,
+          query: to.redirectedFrom.query,
+          hash: to.redirectedFrom.hash,
+          replace: true
+        }
+      }
+      return { path: to.fullPath, replace: true }
     } catch (error) {
       userStore.logout()
-      return { path: '/login', query: { redirect: to.fullPath } }
+      return { path: '/login', query: { redirect: to.redirectedFrom?.fullPath || to.fullPath } }
     }
   }
 

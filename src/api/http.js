@@ -72,7 +72,7 @@ async function refreshAndReplay(originalConfig, error) {
     }
 
     const { accessToken, refreshToken } = payload.data
-    userStore.setTokens(accessToken, refreshToken)
+    userStore.setTokens(accessToken, refreshToken, userStore.rememberMe)
     replayQueue(accessToken)
 
     originalConfig.headers = originalConfig.headers || {}
