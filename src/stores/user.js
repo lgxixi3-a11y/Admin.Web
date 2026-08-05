@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { getUserInfo } from '@/api/auth'
 import { usePermissionStore } from '@/stores/permission'
+import { normalizeUserInfo } from '@/utils/user-info-utils.mjs'
 
 const TOKEN_KEY = 'admin-token'
 const REFRESH_TOKEN_KEY = 'admin-refresh-token'
@@ -29,12 +30,7 @@ export const useUserStore = defineStore('user', {
       if (!this.token) throw new Error('登录凭证不存在')
 
       const data = await getUserInfo(this.token)
-      this.userInfo = {
-        userId: data.userId,
-        userName: data.userName,
-        nickName: data.nickName,
-        avatar: data.avatar
-      }
+      this.userInfo = normalizeUserInfo(data)
       this.roles = data.roles || []
       this.perms = data.perms || []
       this.menus = data.menus || []

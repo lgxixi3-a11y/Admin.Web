@@ -40,7 +40,7 @@
     <el-container class="main-container">
       <el-header class="header">
         <div class="header__left">
-          <el-button :icon="collapsed ? Expand : Fold" text @click="collapsed = !collapsed" />
+          <el-button :icon="collapsed ? Expand : Fold" text @click="toggleCollapse" />
           <el-breadcrumb separator="/">
             <el-breadcrumb-item v-for="item in breadcrumbs" :key="item.path">
               {{ item.meta.title }}
@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, Expand, Fold, Monitor } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
@@ -92,6 +92,7 @@ const router = useRouter()
 const userStore = useUserStore()
 const tagsViewStore = useTagsViewStore()
 const collapsed = ref(false)
+let collapseTimer
 
 const navMenus = computed(() => (userStore.menus || [])
   .filter(menu => Number(menu.menuType) !== 3 && Number(menu.visible) === 1)
@@ -103,7 +104,11 @@ const navMenus = computed(() => (userStore.menus || [])
 
 const breadcrumbs = computed(() => route.matched.filter(item => item.meta?.title))
 const cachedViews = computed(() => tagsViewStore.cachedViews)
-const displayName = computed(() => userStore.userInfo?.nickName || userStore.userInfo?.userName || '用户')
+const displayName = computed(() => {
+  const info = userStore.userInfo || {}
+  const parts = [info.userName, info.nickName].filter(Boolean)
+  return parts.length ? parts.join(' ') : '用户'
+})
 
 function iconOf(name) {
   return name ? Icons[name] || Icons.Menu : Icons.Menu
@@ -112,6 +117,16 @@ function iconOf(name) {
 function handleMenuSelect(path) {
   if (path.startsWith('/') && path !== route.path) router.push(path)
 }
+
+function toggleCollapse() {
+  clearTimeout(collapseTimer)
+  collapseTimer = setTimeout(() => {
+    collapsed.value = !collapsed.value
+    collapseTimer = undefined
+  }, 50)
+}
+
+onBeforeUnmount(() => clearTimeout(collapseTimer))
 
 async function handleCommand(command) {
   if (command !== 'logout') return
@@ -127,7 +142,7 @@ async function handleCommand(command) {
 
 <style scoped>
 .app-wrapper { min-height: 100vh; background: #f5f7fa; }
-.sidebar { overflow: hidden; color: #fff; background: #1f2d3d; transition: width 0.2s; }
+.sidebar { overflow: hidden; color: #fff; background: #1f2d3d; transition: width 0.15s ease; }
 .sidebar__brand { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px; font-size: 16px; font-weight: 600; white-space: nowrap; }
 .sidebar__menu { height: calc(100vh - 56px); border-right: 0; background: transparent; }
 .sidebar :deep(.el-menu), .sidebar :deep(.el-sub-menu__title), .sidebar :deep(.el-menu-item) { color: #c0c4cc; background: transparent; }

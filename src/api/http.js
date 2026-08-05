@@ -118,7 +118,8 @@ service.interceptors.response.use(
     }
 
     if (response?.status === 401) showError('登录已失效，请重新登录', config)
-    else if (response?.status === 403) showError('无权限访问，权限变更请重新登录后生效', config)
+    else if (response?.status === 403) showError('无权限访问，若刚分配权限请重新登录后生效', config)
+    else if (response?.status === 404) showError('请求的资源不存在(404)，请检查权限或刷新页面', config)
     else showError(response?.status ? `请求错误(${response.status})` : '网络异常', config)
     return Promise.reject(error)
   }

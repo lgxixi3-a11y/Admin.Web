@@ -107,3 +107,16 @@ test('http does not refresh a rejected login request', async () => {
   assert.equal(refreshCalls, 0)
   assert.deepEqual(http.messages, ['登录已失效，请重新登录'])
 })
+
+test('http gives actionable messages for missing resources and stale permission snapshots', async () => {
+  const userStore = { token: 'access-token', refreshToken: '', setTokens() {}, logout() {} }
+  const http = loadHttp({ userStore, refresh: async () => ({ data: { code: 200, data: {} } }) })
+
+  await assert.rejects(http.responseInterceptor.rejected({ response: { status: 404 }, config: {} }))
+  await assert.rejects(http.responseInterceptor.rejected({ response: { status: 403 }, config: {} }))
+
+  assert.deepEqual(http.messages, [
+    '请求的资源不存在(404)，请检查权限或刷新页面',
+    '无权限访问，若刚分配权限请重新登录后生效'
+  ])
+})
