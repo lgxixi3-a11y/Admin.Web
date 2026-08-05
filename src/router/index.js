@@ -17,14 +17,14 @@ const routes = [
       path: 'dashboard',
       name: 'Dashboard',
       component: () => import('@/views/dashboard/index.vue'),
-      meta: { title: '首页' }
+      meta: { title: '首页', affix: true, cache: true, cacheName: 'DashboardPage' }
     }]
   },
   {
     path: '/404',
     name: 'NotFound',
     component: () => import('@/views/error/404.vue'),
-    meta: { title: '页面不存在' }
+    meta: { title: '页面不存在', hidden: true }
   },
   { path: '/:pathMatch(.*)*', redirect: '/404' }
 ]

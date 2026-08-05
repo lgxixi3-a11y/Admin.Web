@@ -1,6 +1,7 @@
 import router from './index'
 import { useUserStore } from '@/stores/user'
 import { usePermissionStore } from '@/stores/permission'
+import { useTagsViewStore } from '@/stores/tagsView'
 
 router.beforeEach(async to => {
   const userStore = useUserStore()
@@ -28,6 +29,7 @@ router.beforeEach(async to => {
   return true
 })
 
-router.afterEach(to => {
+router.afterEach((to, from, failure) => {
+  if (!failure) useTagsViewStore().addView(to)
   document.title = `${to.meta.title || 'Admin'} - Admin`
 })

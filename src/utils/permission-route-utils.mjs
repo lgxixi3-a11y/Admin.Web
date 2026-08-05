@@ -10,18 +10,23 @@ export function hasPermission(perms, required) {
 export function buildMenuRoutes(menus, resolveComponent) {
   return (menus || [])
     .filter(menu => Number(menu.menuType) !== BUTTON_MENU_TYPE && isNavigable(menu))
-    .map(menu => ({
-      path: menu.path || '',
-      name: `Menu${menu.id}`,
-      component: resolveMenuComponent(menu, resolveComponent),
-      meta: {
-        title: menu.menuName || '未命名菜单',
-        icon: menu.icon || '',
-        cache: Number(menu.cacheFlag) === 1,
-        hidden: Number(menu.visible) === 0
-      },
-      children: buildMenuRoutes(menu.children, resolveComponent)
-    }))
+    .map(menu => {
+      const name = `Menu${menu.id}`
+      const cache = Number(menu.menuType) === 2 && Number(menu.cacheFlag) === 1
+      return {
+        path: menu.path || '',
+        name,
+        component: resolveMenuComponent(menu, resolveComponent),
+        meta: {
+          title: menu.menuName || '未命名菜单',
+          icon: menu.icon || '',
+          cache,
+          ...(cache ? { cacheName: name } : {}),
+          hidden: Number(menu.visible) === 0
+        },
+        children: buildMenuRoutes(menu.children, resolveComponent)
+      }
+    })
 }
 
 function resolveMenuComponent(menu, resolveComponent) {

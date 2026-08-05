@@ -31,7 +31,7 @@ test('buildMenuRoutes removes button nodes while retaining nested menu metadata'
   assert.equal(routes.length, 1)
   assert.equal(routes[0].component, 'layout')
   assert.equal(routes[0].children[0].component, 'view:system/user/index')
-  assert.deepEqual(routes[0].children[0].meta, { title: '用户管理', icon: 'User', cache: true, hidden: false })
+  assert.deepEqual(routes[0].children[0].meta, { title: '用户管理', icon: 'User', cache: true, cacheName: 'Menu2', hidden: false })
   assert.equal(routes[0].children[0].children.length, 0)
   assert.equal(routes.find(route => route.name === 'Menu4'), undefined)
 })

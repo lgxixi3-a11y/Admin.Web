@@ -64,8 +64,14 @@
         </el-dropdown>
       </el-header>
 
+      <TagsView />
+
       <el-main class="main-content">
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <keep-alive :include="cachedViews">
+            <component :is="Component" :key="route.fullPath" />
+          </keep-alive>
+        </RouterView>
       </el-main>
     </el-container>
   </el-container>
@@ -77,11 +83,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown, Expand, Fold, Monitor } from '@element-plus/icons-vue'
 import * as Icons from '@element-plus/icons-vue'
 import { logoutApi } from '@/api/auth'
+import TagsView from '@/components/TagsView.vue'
 import { useUserStore } from '@/stores/user'
+import { useTagsViewStore } from '@/stores/tagsView'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const tagsViewStore = useTagsViewStore()
 const collapsed = ref(false)
 
 const navMenus = computed(() => (userStore.menus || [])
@@ -93,6 +102,7 @@ const navMenus = computed(() => (userStore.menus || [])
   })))
 
 const breadcrumbs = computed(() => route.matched.filter(item => item.meta?.title))
+const cachedViews = computed(() => tagsViewStore.cachedViews)
 const displayName = computed(() => userStore.userInfo?.nickName || userStore.userInfo?.userName || '用户')
 
 function iconOf(name) {
