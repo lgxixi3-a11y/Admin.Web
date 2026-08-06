@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
-import { defineAsyncComponent, h, KeepAlive } from 'vue'
+import { defineAsyncComponent, h, KeepAlive, markRaw, shallowRef } from 'vue'
 import { RouterView } from 'vue-router'
 import { buildMenuRoutes } from '@/utils/permission-route-utils.mjs'
 import { useTagsViewStore } from '@/stores/tagsView'
 
 const viewModules = require.context('../views', true, /\.vue$/, 'lazy')
-const RouteView = {
+// 组件对象不应被响应式代理(会导致性能开销并触发 Vue 警告),
+// 这里直接以原对象定义, 放入 routes 时再统一 markRaw
+const RouteView = markRaw({
   name: 'RouteView',
   setup() {
     const tagsViewStore = useTagsViewStore()
@@ -15,7 +17,7 @@ const RouteView = {
         : null
     })
   }
-}
+})
 
 function loadView(component) {
   const requested = `./${component}.vue`
@@ -27,8 +29,8 @@ function loadView(component) {
 }
 
 function cacheableComponent(name, component) {
-  const LoadedView = defineAsyncComponent(component)
-  return { name, render: () => h(LoadedView) }
+  const LoadedView = markRaw(defineAsyncComponent(component))
+  return markRaw({ name, render: () => h(LoadedView) })
 }
 
 function resolveComponents(routes) {
@@ -40,22 +42,24 @@ function resolveComponents(routes) {
       ? RouteView
       : meta.cacheName
         ? cacheableComponent(meta.cacheName, route.component)
-        : route.component
+        : markRaw(route.component)
     return { ...route, meta, component, children: resolveComponents(route.children || []) }
   })
 }
 
 export const usePermissionStore = defineStore('permission', {
   state: () => ({
-    routes: [],
+    // 组件对象放入该数组后会被 addRoute 注册, 无需响应式追踪;
+    // 用 shallowRef 避免深度代理路由/组件(触发 "Component was made reactive" 警告)
+    routes: shallowRef([]),
     isRoutesLoaded: false,
     removeRouteHandlers: []
   }),
   actions: {
     generateRoutes(menus) {
-      this.routes = resolveComponents(buildMenuRoutes(menus, loadView))
+      this.routes.value = resolveComponents(buildMenuRoutes(menus, loadView))
       this.isRoutesLoaded = true
-      return this.routes
+      return this.routes.value
     },
     setRouteRemovers(handlers) {
       this.removeRouteHandlers = handlers
@@ -63,7 +67,7 @@ export const usePermissionStore = defineStore('permission', {
     resetRoutes() {
       this.removeRouteHandlers.forEach(removeRoute => removeRoute())
       this.removeRouteHandlers = []
-      this.routes = []
+      this.routes.value = []
       this.isRoutesLoaded = false
     }
   }
