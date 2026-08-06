@@ -18,6 +18,7 @@ test('login log page provides retention cleanup and day-boundary range search', 
   assert.match(source, /beginTime.*00:00:00/)
   assert.match(source, /endTime.*23:59:59/)
   assert.match(source, /retainDays/)
+  assert.match(source, /hostName/, 'login log must show the resolved host name for intranet IPs')
 })
 
 test('operation log page provides JSON detail dialog and authorized cleanup', () => {
@@ -31,4 +32,8 @@ test('operation log page provides JSON detail dialog and authorized cleanup', ()
   assert.match(source, /JSON\.stringify/)
   assert.match(source, /requestParam/i)
   assert.match(source, /errorMsg/i)
+  assert.match(source, /changeDetail/, 'operation log must surface the field-level change diff')
+  assert.match(source, /changeSummary/, 'operation log list must render a change summary column')
+  assert.match(source, /respParam/i, 'operation log detail must show the response result')
+  assert.match(source, /hostName/, 'operation log detail must show the resolved host name')
 })

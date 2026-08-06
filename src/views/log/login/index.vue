@@ -61,6 +61,9 @@
             <el-tag v-if="isInternalIp(row.ipAddr)" size="small" type="info" class="ip-tag">内网</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="主机名" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.hostName || '—' }}</template>
+        </el-table-column>
         <el-table-column label="登录地点" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ formatLocation(row.location) }}

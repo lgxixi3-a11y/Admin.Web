@@ -57,6 +57,12 @@
         </el-table-column>
         <el-table-column prop="module" label="模块" min-width="110" show-overflow-tooltip />
         <el-table-column prop="action" label="操作" min-width="120" show-overflow-tooltip />
+        <el-table-column label="变更内容" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="changeSummary(row.changeDetail)" class="change-summary">{{ changeSummary(row.changeDetail) }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="requestMethod" label="请求方式" width="105" />
         <el-table-column prop="url" label="请求地址" min-width="180" show-overflow-tooltip />
         <el-table-column label="操作 IP" min-width="130">
@@ -97,14 +103,28 @@
         <el-descriptions-item label="耗时">{{ detail.costMs ?? '-' }} ms</el-descriptions-item>
         <el-descriptions-item label="请求地址" :span="2">{{ detail.url || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作 IP">{{ detail.ipAddr || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="主机名">{{ detail.hostName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作地点">{{ formatLocation(detail.location) }}</el-descriptions-item>
         <el-descriptions-item label="浏览器">{{ detail.browser || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作系统">{{ detail.os || '-' }}</el-descriptions-item>
         <el-descriptions-item label="操作时间">{{ detail.operTime || '-' }}</el-descriptions-item>
       </el-descriptions>
       <section v-if="detail" class="json-section">
+        <h4>变更对比</h4>
+        <el-table v-if="detail.changeDetail" :data="parseChangeDetail(detail.changeDetail)" border size="small">
+          <el-table-column prop="field" label="字段" min-width="120" />
+          <el-table-column prop="old" label="修改前" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="new" label="修改后" min-width="180" show-overflow-tooltip />
+        </el-table>
+        <pre v-else class="muted">无变更记录</pre>
+      </section>
+      <section v-if="detail" class="json-section">
         <h4>请求参数</h4>
         <pre>{{ formatJson(detail.requestParam) }}</pre>
+      </section>
+      <section v-if="detail" class="json-section">
+        <h4>响应结果</h4>
+        <pre>{{ formatJson(detail.respParam) }}</pre>
       </section>
       <section v-if="detail" class="json-section">
         <h4>错误信息</h4>
@@ -162,6 +182,22 @@ function formatJson(value) {
   } catch (_) {
     return String(value)
   }
+}
+
+function parseChangeDetail(value) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (_) {
+    return []
+  }
+}
+
+function changeSummary(value) {
+  const changes = parseChangeDetail(value)
+  if (changes.length === 0) return null
+  return changes.map(item => `${item.field}: ${item.old ?? '—'} → ${item.new ?? '—'}`).join('；')
 }
 
 async function load() {
@@ -263,6 +299,14 @@ onMounted(load)
 
 .user-nick {
   font-weight: 500;
+}
+
+.change-summary {
+  color: #606266;
+}
+
+.muted {
+  color: #909399;
 }
 
 .user-name {
